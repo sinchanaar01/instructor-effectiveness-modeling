@@ -25,10 +25,10 @@ There is no single correct answer. This project prioritises **reasoning, fairnes
 | # | Idea | Problem it solves |
 |---|------|-------------------|
 | 1 | **Course-adjusted scoring** | Some courses are simply harder. Metrics are z-scored *within each course* so an instructor isn't punished for teaching a tough subject. |
-| 2 | **Empirical-Bayes shrinkage + reliability weighting** | An instructor with 1 great batch is not "proven". Scores are shrunk toward the global mean based on batch count, and feedback scores are weighted by `feedback_response_rate`. |
+| 2 | **Empirical-Bayes shrinkage + reliability weighting** | The method-of-moments prior strength is `0.5206`; shrunk scores use batch-count reliability and feedback scores are weighted by `feedback_response_rate`. Raw-to-shrunk tier changes: `0` of 120. |
 | 3 | **Leakage-safe target design** | If the score is built from features and the model then predicts it from the same features, accuracy is fake. The score is built from *outcome + feedback* metrics; the model learns from *engagement + consistency + experience* features, with an ablation study showing the effect. |
-| 4 | **Consistency and trend features** | Averages hide behaviour. Std / coefficient of variation, best-vs-worst gap and trend slope across batches show whether an instructor is stable, improving or declining. |
-| 5 | **Rigorous evaluation** | `StratifiedGroupKFold` (grouped by instructor so no leakage), macro-F1, per-class recall, confusion matrix, comparison against a majority-class baseline, and an ordinal-error check (Low↔High mistakes are worse than Low↔Medium). |
+| 4 | **Consistency and trend diagnostics** | Engagement standard deviations form the consistency features. Effectiveness-score trend slope stays descriptive because `batch_id` is not a verified timeline. |
+| 5 | **Repeated grouped evaluation** | Ten repeats of five `StratifiedGroupKFold` splits, grouped by instructor, report macro-F1 mean +/- std, per-class precision/recall, confusion matrix, ordinal error, majority and stratified-random baselines. |
 | 6 | **Sensitivity and stability analysis** | Random weight perturbation + bootstrap show how many instructors keep the same tier. Reports "tier stability %" and flags borderline instructors instead of pretending the tiers are exact. |
 
 ---
@@ -107,11 +107,13 @@ Tiers use terciles (or 25/50/25), chosen after checking class balance. Weights a
 ## 7. Results Summary
 
 - Tier distribution: `Low 40 (33.3%)`, `Medium 40 (33.3%)`, `High 40 (33.3%)` across 120 instructors
-- Best model: `Gradient Boosting` | Macro-F1: `0.3496` | Baseline macro-F1: `0.1667`
-- Tier stability under 200 weight perturbations: `98.57%` (bootstrap tier agreement: `88.20%`)
-- Top drivers: `consistency`, `n_batches`, `n_courses` by permutation importance
+- Best model: `Engagement-only Logistic` | Repeated grouped macro-F1: `0.6371 +/- 0.0910` | Stratified-random chance: `0.3505 +/- 0.0964` | Majority baseline: `0.1667 +/- 0.0000`
+- Lift versus chance: `0.2866`; mean ordinal error: `0.3717`
+- Tier stability under 200 weight perturbations: `98.57%` (bootstrap tier agreement: `88.03%`); raw-to-shrunk tier changes: `0`
+- Top held-out drivers: `forum_activity_rate_mean` (`0.1466 +/- 0.0764`), `avg_watch_time_mean` (`0.1013 +/- 0.0675`), `assignment_submission_rate_mean` (`0.0351 +/- 0.0589`)
+- Diagnostic leaky ablation: `0.8901 +/- 0.0498`; excluded because it uses outcome-derived features.
 
-The production feature set is leakage-safe: it uses engagement summaries, consistency, experience and versatility, while the target is built from outcomes and feedback. The model is useful as a coaching signal, not as a sole judge of instructor performance.
+The production feature set is leakage-safe: it uses engagement summaries, engagement consistency, experience and versatility, while the target is built from outcomes and feedback. The model is useful as a coaching signal, not as a sole judge of instructor performance. EDA found completion/dropout correlation `-0.9535`, ICC `0.3095` for avg_score_improvement, 67 feedback scores at 5.0, and 149 watch-time values at 1.0.
 
 ## 8. Limitations and Ethics
 
