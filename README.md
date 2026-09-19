@@ -29,7 +29,7 @@ There is no single correct answer. This project prioritises **reasoning, fairnes
 | 3 | **Leakage-safe target design** | If the score is built from features and the model then predicts it from the same features, accuracy is fake. The score is built from *outcome + feedback* metrics; the model learns from engagement summaries, engagement consistency, experience and versatility. |
 | 4 | **Consistency and trend diagnostics** | Plain standard deviations form the engagement consistency features; CV is excluded because z-scores centre near zero. Effectiveness-score trend slope stays descriptive because `batch_id` is not a verified timeline. |
 | 5 | **Repeated grouped evaluation** | Ten repeats of five `StratifiedGroupKFold` splits, grouped by instructor, report macro-F1 mean +/- std, per-class precision/recall, confusion matrix, ordinal error, majority and stratified-random baselines. |
-| 6 | **Sensitivity and stability analysis** | Bootstrap tier agreement is `87.44%`; Dirichlet weight perturbations use concentration `20`. A 1-3 batch simulation reduces mean absolute error from `0.1825` raw to `0.1213` shrunk, but shrunk tiers still flip in `6/20` cases. |
+| 6 | **Sensitivity and stability analysis** | Bootstrap tier agreement is `87.44%`; Dirichlet weight perturbations use concentration `20`. Across 200 repetitions, a 1-3 batch simulation reduces mean absolute error from `0.2213` raw to `0.1865` shrunk and mean tier flips from `0.3132` to `0.3050`. |
 
 ---
 
@@ -110,10 +110,12 @@ Tiers use terciles (or 25/50/25), chosen after checking class balance. Weights a
 - All four production candidates are within one highest-model standard deviation; lift versus chance is `0.2567`; mean ordinal error is `0.3775`
 - Bootstrap tier agreement: `87.44%`; weight stability: `97.84%` with Dirichlet concentration `20`; raw-to-shrunk tier changes: `0`; minimum batches: `7`
 - Low-confidence flag: `16` of 120 instructors under the `shrink_weight < 0.95` review threshold
+- Low-confidence batch-count range: `7` to `11` batches
 - Final-score ICC: `0.6326`, inflated because the consistency term is constant per instructor
 - Only distinguishable held-out driver under mean > 1 std: `forum_activity_rate_mean` (`0.1721 +/- 0.0918`)
 - Not distinguishable from zero: `avg_watch_time_mean` (`0.0658 +/- 0.0673`), `assignment_submission_rate_mean` (`0.0437 +/- 0.0669`), and the remaining engagement features
 - Diagnostic leaky ablation: `0.8709 +/- 0.0604`; excluded because it uses outcome-derived features.
+- 200-repeat small-sample simulation: raw error `0.2213` -> shrunk error `0.1865`; raw flips `0.3132` -> shrunk flips `0.3050`
 
 The production feature set is leakage-safe: it uses engagement summaries, engagement consistency, experience and versatility, while the target is built from outcomes and feedback. The model is useful as a coaching signal, not as a sole judge of instructor performance. EDA found 625 completion/dropout mismatches beyond tolerance, completion `0.30` in 77 rows, dropout `0.70` in 72 rows, correlation `-0.9535`, outcome ICC `0.3095`, 67 feedback scores at 5.0, and 149 watch-time values at 1.0. The asymmetric feedback component has mean `-0.2403`, versus `0.0123` for the symmetric comparison; the bad-feedback response correlation is positive at `0.4097`.
 
