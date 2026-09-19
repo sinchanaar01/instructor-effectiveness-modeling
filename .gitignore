@@ -9,3 +9,6 @@ venv/
 
 # Local tooling
 .pytest_cache/
+
+# Local input data
+data/instructor_data.csv

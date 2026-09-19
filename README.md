@@ -25,11 +25,11 @@ There is no single correct answer. This project prioritises **reasoning, fairnes
 | # | Idea | Problem it solves |
 |---|------|-------------------|
 | 1 | **Course-adjusted scoring** | Some courses are simply harder. Metrics are z-scored *within each course* so an instructor isn't punished for teaching a tough subject. |
-| 2 | **Empirical-Bayes shrinkage + reliability weighting** | The method-of-moments prior strength is `0.5206`; shrunk scores use batch-count reliability and feedback scores are weighted by `feedback_response_rate`. Raw-to-shrunk tier changes: `0` of 120. |
-| 3 | **Leakage-safe target design** | If the score is built from features and the model then predicts it from the same features, accuracy is fake. The score is built from *outcome + feedback* metrics; the model learns from *engagement + consistency + experience* features, with an ablation study showing the effect. |
-| 4 | **Consistency and trend diagnostics** | Engagement standard deviations form the consistency features. Effectiveness-score trend slope stays descriptive because `batch_id` is not a verified timeline. |
+| 2 | **Empirical-Bayes shrinkage + reliability weighting** | The method-of-moments prior strength is `0.5809`; positive feedback is response-weighted while low-response negative feedback is conservatively penalized. Raw-to-shrunk tier changes: `0` of 120. |
+| 3 | **Leakage-safe target design** | If the score is built from features and the model then predicts it from the same features, accuracy is fake. The score is built from *outcome + feedback* metrics; the model learns from engagement summaries, engagement consistency, experience and versatility. |
+| 4 | **Consistency and trend diagnostics** | Plain standard deviations form the engagement consistency features; CV is excluded because z-scores centre near zero. Effectiveness-score trend slope stays descriptive because `batch_id` is not a verified timeline. |
 | 5 | **Repeated grouped evaluation** | Ten repeats of five `StratifiedGroupKFold` splits, grouped by instructor, report macro-F1 mean +/- std, per-class precision/recall, confusion matrix, ordinal error, majority and stratified-random baselines. |
-| 6 | **Sensitivity and stability analysis** | Random weight perturbation + bootstrap show how many instructors keep the same tier. Reports "tier stability %" and flags borderline instructors instead of pretending the tiers are exact. |
+| 6 | **Sensitivity and stability analysis** | Bootstrap tier agreement is `87.43%`; Dirichlet weight perturbations use concentration `20`. The simulations flag borderline instructors instead of pretending the tiers are exact. |
 
 ---
 
@@ -54,11 +54,10 @@ Tiers use terciles (or 25/50/25), chosen after checking class balance. Weights a
 
 ### 3.3 Aggregation to Instructor Level
 - **Mean** for typical level, **median** for robustness to outliers
-- **Std / CV** for consistency, **min / max** for floor and ceiling
+- **Std** for spread and engagement consistency, **min / max** for floor and ceiling
 - **Slope** of score over batch order (batch_id used as a time proxy; caveat noted)
 - **n_batches, n_courses** for experience and versatility
-- **Few batches:** shrinkage toward the global mean, plus a low-confidence flag
-- **Many batches:** recent-batch weighting is compared against a plain mean
+- **Few batches:** shrinkage and bootstrap simulations demonstrate the risk; the real data have a minimum of 7 batches per instructor
 
 ### 3.4 Modeling
 - Logistic Regression (baseline, interpretable), Random Forest, Gradient Boosting
@@ -94,7 +93,7 @@ Tiers use terciles (or 25/50/25), chosen after checking class balance. Weights a
 ├── README.md
 ├── instructor_effectiveness.ipynb
 ├── data/
-│   └── instructor_data.csv        # provided dataset (not modified)
+│   └── instructor_data.csv        # place the local CSV here; it is ignored by git
 └── requirements.txt               # pandas, numpy, scikit-learn, matplotlib, seaborn
 ```
 
@@ -107,13 +106,16 @@ Tiers use terciles (or 25/50/25), chosen after checking class balance. Weights a
 ## 7. Results Summary
 
 - Tier distribution: `Low 40 (33.3%)`, `Medium 40 (33.3%)`, `High 40 (33.3%)` across 120 instructors
-- Best model: `Engagement-only Logistic` | Repeated grouped macro-F1: `0.6371 +/- 0.0910` | Stratified-random chance: `0.3505 +/- 0.0964` | Majority baseline: `0.1667 +/- 0.0000`
-- Lift versus chance: `0.2866`; mean ordinal error: `0.3717`
-- Tier stability under 200 weight perturbations: `98.57%` (bootstrap tier agreement: `88.03%`); raw-to-shrunk tier changes: `0`
-- Top held-out drivers: `forum_activity_rate_mean` (`0.1466 +/- 0.0764`), `avg_watch_time_mean` (`0.1013 +/- 0.0675`), `assignment_submission_rate_mean` (`0.0351 +/- 0.0589`)
-- Diagnostic leaky ablation: `0.8901 +/- 0.0498`; excluded because it uses outcome-derived features.
+- Highest observed mean: `Engagement-only Logistic` | Repeated grouped macro-F1: `0.6286 +/- 0.0995` | Stratified-random chance: `0.3719 +/- 0.0853` | Majority baseline: `0.1667 +/- 0.0000`
+- All four production candidates are within one highest-model standard deviation; lift versus chance is `0.2567`; mean ordinal error is `0.3775`
+- Bootstrap tier agreement: `87.43%`; weight stability: `97.84%` with Dirichlet concentration `20`; raw-to-shrunk tier changes: `0`; minimum batches: `7`
+- Final-score ICC: `0.6326`, inflated because the consistency term is constant per instructor
+- Top held-out drivers: `forum_activity_rate_mean` (`0.1662 +/- 0.0899`), `avg_watch_time_mean` (`0.0697 +/- 0.0693`), `assignment_submission_rate_mean` (`0.0481 +/- 0.0635`)
+- Diagnostic leaky ablation: `0.8709 +/- 0.0604`; excluded because it uses outcome-derived features.
 
-The production feature set is leakage-safe: it uses engagement summaries, engagement consistency, experience and versatility, while the target is built from outcomes and feedback. The model is useful as a coaching signal, not as a sole judge of instructor performance. EDA found completion/dropout correlation `-0.9535`, ICC `0.3095` for avg_score_improvement, 67 feedback scores at 5.0, and 149 watch-time values at 1.0.
+The production feature set is leakage-safe: it uses engagement summaries, engagement consistency, experience and versatility, while the target is built from outcomes and feedback. The model is useful as a coaching signal, not as a sole judge of instructor performance. EDA found 625 completion/dropout mismatches beyond tolerance, completion `0.30` in 77 rows, dropout `0.70` in 72 rows, correlation `-0.9535`, outcome ICC `0.3095`, 67 feedback scores at 5.0, and 149 watch-time values at 1.0.
+
+The CSV is intentionally not committed because it is local input data. Put it at `data/instructor_data.csv` before running the notebook.
 
 ## 8. Limitations and Ethics
 
